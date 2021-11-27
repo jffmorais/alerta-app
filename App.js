@@ -3,6 +3,7 @@ import { Button, View, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import EncryptedStorage from 'react-native-encrypted-storage';
+import OneSignal from 'react-native-onesignal';
 
 import SignIn from './components/signIn';
 import Home from './components/home';
@@ -68,36 +69,52 @@ export default function App({ navigation }) {
             isSignout: true,
             userToken: null,
           };
+        case 'LOAD_ALERT':
+          return {
+            ...prevState,
+            isSignout: true,
+            userToken: null,
+          };
       }
     },
     {
       isLoading: true,
       isSignout: false,
       userToken: null,
+      alert: { name: '', description: '', threatLevel: 1, active: false, district: '' },
     }
   );
 
   React.useEffect(() => {
     const bootstrapAsync = async () => {
       let userToken;
-
       try {
-        // Restore token stored in `SecureStore` or any other encrypted storage
-        // userToken = await SecureStore.getItemAsync('userToken');
         userToken = await EncryptedStorage.getItem("user@token");
       } catch (e) {
-        // Restoring token failed
         console.error('Ocorreu um erro para recuperar o token: ', error);
       }
-
-      // After restoring token, we may need to validate it in production apps
-
-      // This will switch to the App screen or Auth screen and this loading
-      // screen will be unmounted and thrown away.
       dispatch({ type: 'RESTORE_TOKEN', token: userToken });
     };
-
     bootstrapAsync();
+
+    // ONESIGNAL
+    OneSignal.setLogLevel(6, 0);
+    OneSignal.setAppId('2096a882-8ab0-4c94-a0ac-f50f01e4b3e7');
+    //Method for handling notifications received while app in foreground
+    OneSignal.setNotificationWillShowInForegroundHandler(notificationReceivedEvent => {
+      console.log("OneSignal: notification will show in foreground:", notificationReceivedEvent);
+      let notification = notificationReceivedEvent.getNotification();
+      console.log("notification: ", notification);
+      const data = notification.additionalData
+      console.log("additionalData: ", data);
+      // Complete with null means don't show a notification.
+      notificationReceivedEvent.complete(notification);
+    });
+
+    //Method for handling notifications opened
+    OneSignal.setNotificationOpenedHandler(notification => {
+      console.log("OneSignal: notification opened:", notification);
+    });
   }, []);
 
   const authContext = React.useMemo(
@@ -120,6 +137,11 @@ export default function App({ navigation }) {
       signOut: async () => {
         await EncryptedStorage.removeItem('user@token');
         dispatch({ type: 'SIGN_OUT' });
+      },
+      loadAlert: async (data) => {
+        // carregar alert aqui
+        await EncryptedStorage.removeItem('user@token');
+        dispatch({ type: 'LOAD_ALERT',  });
       },
       signUp: async (data) => {
         // In a production app, we need to send user data to server and get a token

@@ -1,3 +1,3 @@
 # Alerta
 
-## Rest Service para a aplicação Alerta
+## Andriod app client para aplicação Alerta
