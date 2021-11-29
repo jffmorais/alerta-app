@@ -1,5 +1,5 @@
-import * as React from 'react';
-import { Button, View, Text } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import EncryptedStorage from 'react-native-encrypted-storage';
@@ -11,6 +11,7 @@ import api from './services/api';
 import SignUp from './components/signUp';
 
 export const AuthContext = React.createContext();
+export const NotificationContext = React.createContext();
 
 function SplashScreen() {
   return (
@@ -20,33 +21,17 @@ function SplashScreen() {
   );
 }
 
-function HomeScreen({ navigation }) {
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text>Home Screen</Text>
-      <Button
-        title="Go to Details"
-        onPress={() => navigation.navigate('Details')}
-      />
-    </View>
-  );
-}
-
-function DetailsScreen({ navigation }) {
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text>Details Screen</Text>
-      <Button
-        title="Go to Details... again"
-        onPress={() => navigation.push('Details')}
-      />
-    </View>
-  );
-}
-
 const Stack = createNativeStackNavigator();
 
 export default function App({ navigation }) {
+
+  const [alert, setAlert] = useState({
+    name: '',
+    description: '',
+    district: '',
+    threatLevel: '',
+    active: false,
+  });
 
   const [state, dispatch] = React.useReducer(
     (prevState, action) => {
@@ -69,23 +54,27 @@ export default function App({ navigation }) {
             isSignout: true,
             userToken: null,
           };
-        case 'LOAD_ALERT':
-          return {
-            ...prevState,
-            isSignout: true,
-            userToken: null,
-          };
       }
     },
     {
       isLoading: true,
       isSignout: false,
       userToken: null,
-      alert: { name: '', description: '', threatLevel: 1, active: false, district: '' },
     }
   );
 
-  React.useEffect(() => {
+  const consultaAlerta = async (alertId) => {
+    try {
+      const response = await api.get("/api/alerta", { params: { id: alertId, },});
+      return response;
+    } catch (error) {
+      dispatch({ type: 'SIGN_OUT' });
+      console.error('Erro ao consultar alerta', error)
+    }
+
+  }
+
+  useEffect(() => {
     const bootstrapAsync = async () => {
       let userToken;
       try {
@@ -107,6 +96,13 @@ export default function App({ navigation }) {
       console.log("notification: ", notification);
       const data = notification.additionalData
       console.log("additionalData: ", data);
+      setAlert({
+        name: '',
+        description: '',
+        district: '',
+        threatLevel: '',
+        active: true,
+      });
       // Complete with null means don't show a notification.
       notificationReceivedEvent.complete(notification);
     });
@@ -114,6 +110,21 @@ export default function App({ navigation }) {
     //Method for handling notifications opened
     OneSignal.setNotificationOpenedHandler(notification => {
       console.log("OneSignal: notification opened:", notification);
+      console.log("OneSignal: notification opened additionalData:", notification.notification.additionalData);
+      const { alertEmissionId, alertId } = notification.notification.additionalData
+      consultaAlerta(alertId)
+        .then(res => {
+          console.log('retorno', res.data);
+          const { name, description, district, threatLevel } = res.data;
+          setAlert({
+            name,
+            description,
+            district,
+            threatLevel,
+            active: true,
+          });
+          console.log('alerta', alert);
+        })
     });
   }, []);
 
@@ -141,7 +152,7 @@ export default function App({ navigation }) {
       loadAlert: async (data) => {
         // carregar alert aqui
         await EncryptedStorage.removeItem('user@token');
-        dispatch({ type: 'LOAD_ALERT',  });
+        dispatch({ type: 'LOAD_ALERT', });
       },
       signUp: async (data) => {
         // In a production app, we need to send user data to server and get a token
@@ -157,26 +168,28 @@ export default function App({ navigation }) {
 
   return (
     <AuthContext.Provider value={authContext}>
-      <NavigationContainer>
-        <Stack.Navigator>
-          {state.isLoading ? (
-            <Stack.Screen name="Splash" component={SplashScreen} />
-          ) : state.userToken == null ? (
-            <>
-              <Stack.Screen name="Login"
-                component={SignIn}
-                options={{ title: 'Acessar', animationTypeForReplace: state.isSignout ? 'pop' : 'push', }}
-              />
-              <Stack.Screen name="Cadastro"
-                component={SignUp}
-                options={{ title: 'Cadastrar novo usuário', animationTypeForReplace: state.isSignout ? 'pop' : 'push', }}
-              />
-            </>
-          ) : (
-            <Stack.Screen name="Home" component={Home} />
-          )}
-        </Stack.Navigator>
-      </NavigationContainer>
+      <NotificationContext.Provider value={alert}>
+        <NavigationContainer>
+          <Stack.Navigator>
+            {state.isLoading ? (
+              <Stack.Screen name="Splash" component={SplashScreen} />
+            ) : state.userToken == null ? (
+              <>
+                <Stack.Screen name="Login"
+                  component={SignIn}
+                  options={{ title: 'Acessar', animationTypeForReplace: state.isSignout ? 'pop' : 'push', }}
+                />
+                <Stack.Screen name="Cadastro"
+                  component={SignUp}
+                  options={{ title: 'Cadastrar novo usuário', animationTypeForReplace: state.isSignout ? 'pop' : 'push', }}
+                />
+              </>
+            ) : (
+              <Stack.Screen name="Home" component={Home} />
+            )}
+          </Stack.Navigator>
+        </NavigationContainer>
+      </NotificationContext.Provider>
     </AuthContext.Provider>
   );
 }

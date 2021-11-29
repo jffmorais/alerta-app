@@ -1,20 +1,25 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { StyleSheet, TouchableOpacity, Text, View, Image, Animated } from 'react-native';
-import { AuthContext } from '../../App.js';
-import { AZUL_CLARO, CINZA_CLARO } from '../../assets/colors';
+import { AuthContext, NotificationContext } from '../../App.js';
+import { AZUL_CLARO } from '../../assets/colors';
+import Sound from 'react-native-sound';
+import Siren from './Siren/index.js';
 
 export default function Home({ navigation }) {
 
     const { signOut } = useContext(AuthContext);
 
-    const [alert, setAlert] = useState('');
-    const [animation, setAnimation] = useState(new Animated.Value(0))
+    const [animation, setAnimation] = useState(new Animated.Value(0));
 
     useEffect(() => {
-        //handleAnimation();
+
         setInterval(() => {
             handleAnimation();
-        }, 3000);
+        }, 600);
+
+        /*return () => {
+            siren.release();
+        }*/
 
     }, []);
 
@@ -32,6 +37,17 @@ export default function Home({ navigation }) {
             fontSize: 16,
             color: '#FFF',
             fontWeight: 'bold',
+        },
+        titulo: {
+            fontSize: 18,
+            color: '#ff4f21',
+            fontWeight: 'bold',
+        },
+        texto: {
+            fontSize: 16,
+            fontWeight: 'bold',
+            color: '#000',
+            padding: 6,
         },
         warning: {
             width: 150,
@@ -55,12 +71,12 @@ export default function Home({ navigation }) {
     const handleAnimation = () => {
         Animated.timing(animation, {
             toValue: 1,
-            duration: 1000,
+            duration: 300,
             useNativeDriver: false,
         }).start(() => {
             Animated.timing(animation, {
                 toValue: 0,
-                duration: 1000,
+                duration: 300,
                 useNativeDriver: false,
             }).start()
         })
@@ -77,11 +93,28 @@ export default function Home({ navigation }) {
 
     return (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Text>Home Screen</Text>
-            <Animated.View style={{ ...styles.box, ...animatedStyle }} >
-                <Image style={styles.warning} source={require('../../assets/warning.png')} />
-            </Animated.View>
-            <Text>Home Screen</Text>
+            <NotificationContext.Consumer>
+                {
+                    ({ name, description, district, threatLevel, active }) => (
+                        <>
+                            {active &&
+                                <>                                    
+                                    <Text style={styles.titulo}>Atenção! Emergência em andamento</Text>
+                                    <Text style={styles.texto}>{name}</Text>
+                                    <Text style={styles.texto}>{description}</Text>
+                                    <Animated.View style={{ ...styles.box, ...animatedStyle }} >
+                                        <Image style={styles.warning} source={require('../../assets/warning.png')} />
+                                    </Animated.View>
+                                    <Text style={styles.texto}>Local: {district}</Text>
+                                    <Text style={styles.texto}>Nivel de ameaça: {threatLevel}/5</Text>
+                                    <Siren />
+                                </>
+                            }
+                        </>
+                    )
+                }
+            </NotificationContext.Consumer>
+
             <TouchableOpacity
                 style={styles.btnLogin}
                 onPress={onLogoffHandler}
